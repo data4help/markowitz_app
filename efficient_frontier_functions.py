@@ -37,7 +37,8 @@ class MarkowitzReturns():
          self.stock_ret,
          self.stock_std,
          self.stock_cov,
-         self.stock_corr) = self.all_possible_portfolios(self.returns)
+         self.stock_corr,
+         self.weights) = self.all_possible_portfolios(self.returns)
 
         # Get efficient frontier
         (self.ef_return,
@@ -58,9 +59,11 @@ class MarkowitzReturns():
 
         # Calculating the CML
         (self.cml,
-         self.cml_xaxis) = self.capital_market_line(self.risk_free_rate,
-                                                    self.ef_return,
-                                                    self.ef_std)
+         self.cml_xaxis,
+         self.tangency_return,
+         self.tangency_risk) = self.capital_market_line(self.risk_free_rate,
+                                                        self.ef_return,
+                                                        self.ef_std)
 
         # Combining all results
         self.results = {
@@ -69,12 +72,18 @@ class MarkowitzReturns():
                 "return": self.stock_ret,
                 "risk": self.stock_std,
                 }),
+            "stock_time_series": pd.DataFrame(
+                self.returns
+                ),
             "stock_correlation": self.stock_corr,
             "portfolio": pd.DataFrame({
                 "return": self.port_ret,
                 "risk": self.port_std,
-                "sharpe_ratio": self.sharpe_ratio
+                "sharpe_ratio": self.sharpe_ratio,
                 }),
+            "portfolio_weights": pd.DataFrame(
+                self.weights
+                ),
             "efficient_frontier": pd.DataFrame({
                 "return": self.ef_return,
                 "risk": self.ef_std
@@ -86,6 +95,10 @@ class MarkowitzReturns():
             "mvp": pd.DataFrame({
                 "return": self.mvp_return,
                 "risk": self.mvp_risk
+                }),
+            "tangency": pd.DataFrame({
+                "return": self.tangency_return,
+                "risk": self.tangency_risk
                 })
         }
 
@@ -172,7 +185,7 @@ class MarkowitzReturns():
         stock_correlation = returns.corr()
 
         num_of_companies = len(returns.columns)
-        number_of_weights = 100_000
+        number_of_weights = 10_000
         random_weights = np.random.dirichlet(np.ones(num_of_companies),
                                              size=number_of_weights)
         weight_times_covariance = np.matmul(random_weights,
@@ -189,7 +202,7 @@ class MarkowitzReturns():
             portfolio_std.append(element_std)
 
         return (portfolio_returns, portfolio_std, stock_returns,
-                stock_std, stock_covariance, stock_correlation)
+                stock_std, stock_covariance, stock_correlation, random_weights)
 
     def efficient_frontier(self, portfolio_returns,
                            vector_returns, covariance_matrix):
@@ -332,7 +345,12 @@ class MarkowitzReturns():
         """
         ef_sharpe_ratio = (ef_returns-risk_free_rate) / ef_risks
 
-        cml_xaxis = np.arange(0, max(ef_risks), 0.05)
-        cml = risk_free_rate + max(ef_sharpe_ratio) * cml_xaxis
+        highest_sharpe_ratio = max(ef_sharpe_ratio)
+        bool_tangency = ef_sharpe_ratio == highest_sharpe_ratio
+        tangency_return = np.array(ef_returns)[bool_tangency]
+        tangency_risk = np.array(ef_risks)[bool_tangency]
 
-        return cml, cml_xaxis
+        cml_xaxis = np.arange(0, max(ef_risks), 0.05)
+        cml = risk_free_rate + highest_sharpe_ratio * cml_xaxis
+
+        return cml, cml_xaxis, tangency_return, tangency_risk
