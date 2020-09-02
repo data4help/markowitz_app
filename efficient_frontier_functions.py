@@ -61,9 +61,10 @@ class MarkowitzReturns():
         (self.cml,
          self.cml_xaxis,
          self.tangency_return,
-         self.tangency_risk) = self.capital_market_line(self.risk_free_rate,
-                                                        self.ef_return,
-                                                        self.ef_std)
+         self.tangency_risk,
+         self.tangency_sh) = self.capital_market_line(self.risk_free_rate,
+                                                      self.ef_return,
+                                                      self.ef_std)
 
         # Combining all results
         self.results = {
@@ -98,7 +99,8 @@ class MarkowitzReturns():
                 }),
             "tangency": pd.DataFrame({
                 "return": self.tangency_return,
-                "risk": self.tangency_risk
+                "risk": self.tangency_risk,
+                "sharpe_ratio": self.tangency_sh
                 })
         }
 
@@ -349,8 +351,10 @@ class MarkowitzReturns():
         bool_tangency = ef_sharpe_ratio == highest_sharpe_ratio
         tangency_return = np.array(ef_returns)[bool_tangency]
         tangency_risk = np.array(ef_risks)[bool_tangency]
+        tangency_sharpe_ratio = np.array(ef_sharpe_ratio)[bool_tangency]
 
         cml_xaxis = np.arange(0, max(ef_risks), 0.05)
         cml = risk_free_rate + highest_sharpe_ratio * cml_xaxis
 
-        return cml, cml_xaxis, tangency_return, tangency_risk
+        return (cml, cml_xaxis, tangency_return,
+                tangency_risk, tangency_sharpe_ratio)
