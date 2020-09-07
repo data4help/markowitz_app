@@ -9,12 +9,6 @@ library(shinydashboard)
 library(DT)
 
 # Importing the python class ----
-virtualenv_install("r-reticulate", c("numpy",
-                                     "pandas",
-                                     "pandas_datareader",
-                                     "tqdm",
-                                     "scipy",
-                                     "quandl"))
 source_python("efficient_frontier_functions.py")
 
 # Importing ticker list ----
