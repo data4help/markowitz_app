@@ -9,6 +9,9 @@ library(shinydashboard)
 library(DT)
 
 # Importing the python class ----
+virtualenv_create(envname = "python_environment", python= "python3")
+virtualenv_install("python_environment", packages =c('pandas','catboost','gunicorn'))
+use_virtualenv("python_environment",required = TRUE)
 source_python("efficient_frontier_functions.py")
 
 # Importing ticker list ----
