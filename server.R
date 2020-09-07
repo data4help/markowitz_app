@@ -9,7 +9,12 @@ library(shinydashboard)
 library(DT)
 
 # Importing the python class ----
-use_condaenv("markowitz", required=TRUE)
+virtualenv_install("r-reticulate", c("numpy",
+                                     "pandas",
+                                     "pandas_datareader",
+                                     "tqdm",
+                                     "scipy",
+                                     "quandl"))
 source_python("efficient_frontier_functions.py")
 
 # Importing ticker list ----
@@ -69,7 +74,7 @@ shinyServer(function(input, output, session) {
                        "3"=returns$cml)
     point = event_data("plotly_click", source="main_plot")
     return_number = point$curveNumber
-    return(return_list[[toString(return_number)]])
+    return_list[[toString(return_number)]]
   })  
   
   port_return_data = reactive({
@@ -252,7 +257,7 @@ shinyServer(function(input, output, session) {
                                aes(risk, return, shape="Capital Market Line")) 
     }
     
-    return(ggplotly(plot, source="main_plot"))
+    ggplotly(plot, source="main_plot")
   })
   
   #* Sending the plot to UI ----
