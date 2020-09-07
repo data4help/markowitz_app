@@ -38,24 +38,35 @@ class MarkowitzReturns():
          self.stock_std,
          self.stock_cov,
          self.stock_corr,
-         self.weights) = self.all_possible_portfolios(self.returns)
+         self.stock_weights,
+         self.port_weights) = self.all_possible_portfolios(self.returns)
 
         # Get efficient frontier
         (self.ef_return,
          self.ef_std,
-         self.mvp_return,
-         self.mvp_risk) = self.efficient_frontier(self.port_ret,
-                                                  self.stock_ret,
-                                                  self.stock_cov)
+         self.ef_weights) = self.efficient_frontier(self.port_ret,
+                                                    self.stock_ret,
+                                                    self.stock_cov)
 
         # Pulling the risk free rate
         self.risk_free_rate = self.pulling_risk_free_rate(self.start_date,
                                                           self.end_date)
 
+        # Sharpe ratio for stocks
+        self.stock_sr = self.sharpe_ratio_calculation(self.stock_ret,
+                                                      self.stock_std,
+                                                      self.risk_free_rate)
+
         # Calculation of the sharpe ratio of the simulated portfolios
         self.sharpe_ratio = self.sharpe_ratio_calculation(self.port_ret,
                                                           self.port_std,
                                                           self.risk_free_rate)
+
+        # Calculation of the sharpe ratio of efficient frontier portfolios
+        self.ef_sharpe_ratio = self.sharpe_ratio_calculation(
+            self.ef_return,
+            self.ef_std,
+            self.risk_free_rate)
 
         # Calculating the CML
         (self.cml,
@@ -72,7 +83,11 @@ class MarkowitzReturns():
                 "name": self.tickers,
                 "return": self.stock_ret,
                 "risk": self.stock_std,
+                "sharpe_ratio": self.stock_sr
                 }),
+            "stock_weight": pd.DataFrame(
+                self.stock_weights
+                ),
             "stock_time_series": pd.DataFrame(
                 self.returns
                 ),
@@ -83,19 +98,18 @@ class MarkowitzReturns():
                 "sharpe_ratio": self.sharpe_ratio,
                 }),
             "portfolio_weights": pd.DataFrame(
-                self.weights
+                self.port_weights
                 ),
             "efficient_frontier": pd.DataFrame({
                 "return": self.ef_return,
-                "risk": self.ef_std
+                "risk": self.ef_std,
+                "sharpe_ratio": self.ef_sharpe_ratio
                 }),
+            "ef_weights": self.ef_weights,
             "cml": pd.DataFrame({
-                "cml": self.cml,
-                "cml_xaxis": self.cml_xaxis,
-                }),
-            "mvp": pd.DataFrame({
-                "return": self.mvp_return,
-                "risk": self.mvp_risk
+                "return": self.cml,
+                "risk": self.cml_xaxis,
+                "sharpe_ratio": len(self.cml) * list(self.tangency_sh)
                 }),
             "tangency": pd.DataFrame({
                 "return": self.tangency_return,
@@ -203,8 +217,11 @@ class MarkowitzReturns():
             element_std = np.sqrt(diagonal_element)
             portfolio_std.append(element_std)
 
+        stock_weights = np.eye(len(returns.columns))
+
         return (portfolio_returns, portfolio_std, stock_returns,
-                stock_std, stock_covariance, stock_correlation, random_weights)
+                stock_std, stock_covariance, stock_correlation,
+                stock_weights, random_weights)
 
     def efficient_frontier(self, portfolio_returns,
                            vector_returns, covariance_matrix):
@@ -245,6 +262,7 @@ class MarkowitzReturns():
             [x, covariance_matrix, x.T]))
 
         minimum_risk_given_return = []
+        ef_weights = []
         for i in given_return:
             constraints = [{"type": "eq",
                             "fun": lambda x: sum(x) - 1},
@@ -252,8 +270,10 @@ class MarkowitzReturns():
                             "fun": lambda x: (sum(x*vector_returns) - i)}]
             outcome = solver.minimize(objective_function,
                                       x0=initial_weights,
+                                      method="SLSQP",
                                       constraints=constraints, bounds=bounds)
             minimum_risk_given_return.append(outcome.fun)
+            ef_weights.append(list(outcome.x))
 
         # storing the mvp information
         mvp_risk = min(minimum_risk_given_return)
@@ -263,8 +283,9 @@ class MarkowitzReturns():
         bool_ef = given_return >= mvp_return
         ef_return = given_return[bool_ef]
         ef_risk = np.array(minimum_risk_given_return)[bool_ef]
+        all_weights = pd.DataFrame(np.array(ef_weights)[bool_ef])
 
-        return (ef_return, ef_risk, mvp_risk, mvp_return)
+        return (ef_return, ef_risk, all_weights)
 
     def pulling_risk_free_rate(self, start_date, end_date):
         """
