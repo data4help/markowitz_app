@@ -42,86 +42,7 @@ color_picker = function(type, number) {
   return(color)
 }
 
-# User Interface ----
-ui = dashboardPage(
-  dashboardHeader(title="Portfolio Creator"),
-  
-  #* Sidebar----
-  dashboardSidebar(
-    #** Selecting Stocks ----
-    selectizeInput(inputId = "stocks_chosen",
-                   label = "Choose Stocks",
-                   choices = NULL,
-                   multiple = TRUE,
-                   options=list(placeholder="Type to search for stock")),
-  
-    br(),
-    
-    #** Date range ----
-    dateRangeInput(inputId = "daterange",
-                   label = "Selecting Date Range",
-                   start = "2010-01-01",
-                   end = as.character(Sys.Date())),
-    
-    br(),
-    
-    #** Risk-free rate inclusion ----
-    checkboxInput(inputId = "risk_free_button",
-                  label = "Showing the Capital Market Line (CML)",
-                  value = FALSE),
-    
-    br(),
-    
-    #** Submit button for plotting ----
-    actionButton(inputId = "submit",
-                 label = "Submit")
-  ),
-  
-  #* Main body ----
-  dashboardBody(
-    
-    #** specific returns and risk ----
-    fluidRow(
-      valueBoxOutput("portfolio_sharpe_ratio"),
-      valueBoxOutput("portfolio_return"),
-      valueBoxOutput("portfolio_risk")
-    ),
-    
-    #** stock rankings and markowitz ---- 
-    fluidRow(
-      box(title = "Stock Rankings",
-          solidHeader = TRUE,
-          width = 4,
-          collapsible = TRUE,
-          div(DT::DTOutput("stock_rankings"), style = "font-size: 110%;")),
-      
-      box(title = "Markowitz Diagram", solidHeader = TRUE,
-          width = 8, collapsible = TRUE,
-          plotlyOutput("markowitz") %>% withSpinner(color="#0dc5c1"))
-    ),
-    
-    fluidRow(
-      box(title = "Correlation Matrix",
-          solidHeader = TRUE,
-          width = 4,
-          collapsible = TRUE,
-          div(plotlyOutput("heatmap"))),
-
-      box(title = "Portfolio weights", solidHeader = TRUE,
-          width = 4, collapsible = TRUE,
-          plotOutput("portfolio_weights")),
-      
-            
-      box(title = "Time Series Performance", solidHeader = TRUE,
-          width = 4, collapsible = TRUE,
-          plotlyOutput("time_series"))
-    ),
-  )
-)
-
-
-# Server ---- 
-server = function(input, output, session) {
+shinyServer(function(input, output, session) {
   
   #* Updating the selectize input of stocks ----
   updateSelectizeInput(session, "stocks_chosen", 
@@ -138,7 +59,7 @@ server = function(input, output, session) {
     return(return_data)
   })
   
-
+  
   # extracting return, risk and sharpe ratio for selected portfolio ----
   return_df = eventReactive(event_data("plotly_click", source="main_plot"), {
     returns = data()
@@ -159,7 +80,7 @@ server = function(input, output, session) {
       slice(point$pointNumber+1)
     return(port_return)
   })
-
+  
   port_risk_data = reactive({
     returns = return_df()
     point = pointer()
@@ -227,7 +148,7 @@ server = function(input, output, session) {
     
     # plotting time series
     ts_plot = ggplot(data=df_portfolio_time_series, 
-                         aes(x=Date, y=Return, group=1)) + 
+                     aes(x=Date, y=Return, group=1)) + 
       geom_line()
     output$time_series = renderPlotly({ts_plot})
     
@@ -243,7 +164,7 @@ server = function(input, output, session) {
       port_sf = port_sr_data()
       port_return = port_return_data()
       port_risk = port_risk_data()
-
+      
       pct_sr_data = round(((port_sf/returns$tangency$sharpe_ratio)*100), 2)
       pct_return = round(((port_return/returns$tangency$return)*100), 2)
       pct_risk = round(((port_risk/returns$tangency$risk)*100), 2)
@@ -325,7 +246,7 @@ server = function(input, output, session) {
                                   "Capital Market Line" = 1)) +
       scale_colour_gradient(low="pink", high="darkorchid4") +
       theme(legend.margin = 2)
-
+    
     if (input$risk_free_button) {
       plot = plot + geom_point(data=returns$cml, 
                                aes(risk, return, shape="Capital Market Line")) 
@@ -333,10 +254,8 @@ server = function(input, output, session) {
     
     return(ggplotly(plot, source="main_plot"))
   })
-
+  
   #* Sending the plot to UI ----
   output$markowitz = renderPlotly({main_plot()})
-
-}
-
-shinyApp(ui = ui, server = server)
+  
+})
