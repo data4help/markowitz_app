@@ -13,7 +13,7 @@ use_condaenv("markowitz", required=TRUE)
 source_python("efficient_frontier_functions.py")
 
 # Importing ticker list ----
-ticker = read_excel(paste(path, "ticker.xlsx", sep=""), skip=3)
+ticker = read_excel("ticker.xlsx", skip=3)
 clean_tickers = ticker %>% filter(!is.na(ticker$Name))
 stock_names_ticker = setNames(clean_tickers$Ticker, clean_tickers$Name)
 
