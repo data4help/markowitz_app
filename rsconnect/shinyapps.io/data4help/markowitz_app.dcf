@@ -1,0 +1,12 @@
+name: markowitz_app
+title: markowitz_app
+username:
+account: data4help
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 2768668
+bundleId: 3631156
+url: https://data4help.shinyapps.io/markowitz_app/
+when: 1600173195.05164
+asMultiple: FALSE
+asStatic: FALSE

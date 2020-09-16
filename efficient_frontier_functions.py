@@ -71,6 +71,7 @@ class MarkowitzReturns():
         # Calculating the CML
         (self.cml,
          self.cml_xaxis,
+         self.cml_sf,
          self.tangency_return,
          self.tangency_risk,
          self.tangency_sh) = self.capital_market_line(self.risk_free_rate,
@@ -109,7 +110,7 @@ class MarkowitzReturns():
             "cml": pd.DataFrame({
                 "return": self.cml,
                 "risk": self.cml_xaxis,
-                "sharpe_ratio": len(self.cml) * list(self.tangency_sh)
+                "sharpe_ratio": self.cml_sf
                 }),
             "tangency": pd.DataFrame({
                 "return": self.tangency_return,
@@ -154,11 +155,9 @@ class MarkowitzReturns():
                                      ending_date)
                 df_prices.loc[:, ticker] = tmp['Adj Close']
             except KeyError:
-                print("{} could not be loaded for this date".format(ticker))
                 pass
             except RemoteDataError:
-                print("{} could not be loaded, check your"
-                      "internet connection".format(ticker))
+                print("Returns for these dates not available")
                 pass
 
         # Get annualized returns
@@ -201,7 +200,7 @@ class MarkowitzReturns():
         stock_correlation = returns.corr()
 
         num_of_companies = len(returns.columns)
-        number_of_weights = 10_000
+        number_of_weights = 10000
         random_weights = np.random.dirichlet(np.ones(num_of_companies),
                                              size=number_of_weights)
         weight_times_covariance = np.matmul(random_weights,
@@ -256,7 +255,15 @@ class MarkowitzReturns():
         bounds = tuple((0, 1) for x in range(num_of_companies))
         initial_weights = np.random.dirichlet(np.ones(num_of_companies),
                                               size=1)
-        min_return, max_return = min(portfolio_returns), max(portfolio_returns)
+        max_return = float("-inf")
+        for ret in portfolio_returns:
+            if ret > max_return:
+                max_return = ret
+
+        min_return = float("+inf")
+        for ret in portfolio_returns:
+            if ret < min_return:
+                min_return = ret
         given_return = np.arange(min_return, max_return, .001)
         objective_function = lambda x: np.sqrt(np.linalg.multi_dot(
             [x, covariance_matrix, x.T]))
@@ -274,18 +281,9 @@ class MarkowitzReturns():
                                       constraints=constraints, bounds=bounds)
             minimum_risk_given_return.append(outcome.fun)
             ef_weights.append(list(outcome.x))
+        df_ef_weights = pd.DataFrame(ef_weights)
 
-        # storing the mvp information
-        mvp_risk = min(minimum_risk_given_return)
-        mvp_return = given_return[minimum_risk_given_return == mvp_risk]
-
-        # storing the efficient frontier information
-        bool_ef = given_return >= mvp_return
-        ef_return = given_return[bool_ef]
-        ef_risk = np.array(minimum_risk_given_return)[bool_ef]
-        all_weights = pd.DataFrame(np.array(ef_weights)[bool_ef])
-
-        return (ef_return, ef_risk, all_weights)
+        return (given_return, minimum_risk_given_return, df_ef_weights)
 
     def pulling_risk_free_rate(self, start_date, end_date):
         """
@@ -338,7 +336,10 @@ class MarkowitzReturns():
             a list with sharpe ratio
 
         """
-        sharpe_ratio = ((port_returns-risk_free_rate)/port_risks)
+        sharpe_ratio = []
+        for asset_return, asset_risk in zip(port_returns, port_risks):
+            asset_sharpe_ratio = ((asset_return-risk_free_rate)/asset_risk)
+            sharpe_ratio.append(asset_sharpe_ratio)
         return sharpe_ratio
 
     def capital_market_line(self, risk_free_rate, ef_returns, ef_risks):
@@ -366,16 +367,29 @@ class MarkowitzReturns():
             a list with the cml xaxis values
 
         """
-        ef_sharpe_ratio = (ef_returns-risk_free_rate) / ef_risks
+        ef_sharpe_ratio = self.sharpe_ratio_calculation(ef_returns, ef_risks,
+                                                        risk_free_rate)
 
-        highest_sharpe_ratio = max(ef_sharpe_ratio)
-        bool_tangency = ef_sharpe_ratio == highest_sharpe_ratio
-        tangency_return = np.array(ef_returns)[bool_tangency]
-        tangency_risk = np.array(ef_risks)[bool_tangency]
-        tangency_sharpe_ratio = np.array(ef_sharpe_ratio)[bool_tangency]
+        highest_sharpe_ratio = float("-inf")
+        for sf in ef_sharpe_ratio:
+            if sf > highest_sharpe_ratio:
+                highest_sharpe_ratio = sf
 
-        cml_xaxis = np.arange(0, max(ef_risks), 0.05)
+        max_risk_level = float("-inf")
+        for risk_level in ef_risks:
+            if risk_level > max_risk_level:
+                max_risk_level = risk_level
+
+        bool_tangency = [(x == highest_sharpe_ratio) for x in ef_sharpe_ratio]
+        tangency_return = [i for (i, v) in
+                           zip(ef_returns, bool_tangency) if v]
+        tangency_risk = [i for (i, v) in
+                         zip(ef_risks, bool_tangency) if v]
+        tangency_sharpe_ratio = [i for (i, v) in
+                                 zip(ef_sharpe_ratio, bool_tangency) if v]
+        cml_xaxis = np.arange(0, 4, 0.1)
         cml = risk_free_rate + highest_sharpe_ratio * cml_xaxis
+        cml_sharpe_ratio = len(cml_xaxis) * tangency_sharpe_ratio
 
-        return (cml, cml_xaxis, tangency_return,
+        return (cml, cml_xaxis, cml_sharpe_ratio, tangency_return,
                 tangency_risk, tangency_sharpe_ratio)
